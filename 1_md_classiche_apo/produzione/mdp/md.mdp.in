@@ -1,0 +1,52 @@
+; TEMPLATE -- non usare direttamente: eq.sh ne genera una copia per replica
+; sostituendo ${CONT} ${GVEL} ${GSEED} ${LSEED}.
+; produzione: 500 ns NPT, nessun restraint, un frame ogni 50 ps (DT_RAW_NS=0.050).
+; Riprende da equil_s5 con -t .cpt, quindi continuation=yes e gen-vel=no: il seme
+; che conta qui e' ld-seed, perche' v-rescale resta stocastico per tutti i 500 ns.
+; md: produzione NPT, nessun restraint; frame ogni 50 ps (DT_RAW_NS=0.050)  (500 ns)
+
+integrator               = md
+dt                       = 0.002
+nsteps                   = 100000000
+continuation             = ${CONT}
+gen-vel                  = ${GVEL}
+gen-temp                 = 310.15
+gen-seed                 = ${GSEED}
+ld-seed                  = ${LSEED}
+constraints              = h-bonds
+constraint-algorithm     = LINCS
+
+; --- non-bonded (AMBER ff14SB + GLYCAM06j + TIP3P/Joung-Cheatham) ---
+cutoff-scheme            = Verlet
+nstlist                  = 100
+coulombtype              = PME
+rcoulomb                 = 1.2
+vdwtype                  = Cut-off
+vdw-modifier             = Potential-shift
+rvdw                     = 1.2
+rlist                    = 1.2
+DispCorr                 = EnerPres
+pbc                      = xyz
+
+; --- temperatura ---
+tcoupl                   = v-rescale
+tc-grps                  = Protein Water_and_ions
+tau-t                    = 1.0   1.0
+ref-t                    = 310.15 310.15
+
+; --- pressione: C-rescale (valido anche in produzione) ---
+pcoupl                   = C-rescale
+pcoupltype               = isotropic
+tau-p                    = 5.0
+compressibility          = 4.5e-5
+ref-p                    = 1.0
+refcoord-scaling         = com
+
+nstcomm                  = 100
+comm-mode                = linear
+comm-grps                = Protein Water_and_ions
+
+; --- output ---
+nstxout-compressed       = 50000
+nstenergy                = 10000
+nstlog                   = 10000

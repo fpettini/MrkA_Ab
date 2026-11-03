@@ -1,0 +1,12 @@
+integrator              = steep
+emtol                   = 100
+nsteps                  = 100000
+nstlist                 = 1
+cutoff-scheme           = Verlet
+vdwtype                 = Cut-off
+coulombtype             = PME
+rvdw                    = 1
+rcoulomb                = 1
+vdw-modifier            = Potential-shift
+DispCorr                = EnerPres
+;

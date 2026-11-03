@@ -13,6 +13,7 @@ Si analizzano r0 (ensemble non scalato, 310.15 K) e r15 (replica più calda, sol
 | `01_estrai.py` | Ricompone la proteina attraverso le PBC e salva backbone + SG 43/87 di r0 e r15 per X-ray e NMR. Terzo argomento opzionale: nome del run (per REST3). |
 | `02_controlli.py` | Controlli preliminari: RMSD del core, frazione β (DSSP), Rg dei loop caldi, distanza SG–SG; scarto iniziale 20 ns (`--t0`). |
 | `03_popolazioni.py` | Analisi principale: distanze di ogni loop dai riferimenti X-ray e NMR (modello 6; controllo = modello più vicino dei 20), popolazioni pX/pN/altro, test di equivalenza (soglia 0.15) fra i run e fra le metà, sensibilità a scarto 120 ns e a soglie 0.75/1.25·D. |
+| `verifica_indipendente/verifica.py` | Verifica indipendente (riscritta da zero) dei numeri chiave di 03: legge conf.gro e xtc e ricalcola distanze e popolazioni con scelte dichiarate. |
 | `provenienza.py` | Scrive la provenienza (sha256, versioni, argomenti) in testa a ogni txt/json e nelle cache. |
 | `SPEC.md` | Specifica del piano di analisi approvato (criteri fissati prima dei dati). |
 | `LEGGIMI.md` | Tabella passo → script → input/output e comandi per rifare l'analisi. |
