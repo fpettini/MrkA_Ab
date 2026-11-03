@@ -1,0 +1,10 @@
+cff-version: 1.2.0
+message: "Se usi questi script, cita questo repository e, quando disponibile, l'articolo associato."
+title: "MrkA: script delle simulazioni di dinamica molecolare e delle analisi"
+authors:
+  - family-names: Pettini
+    given-names: Francesco
+    affiliation: "Università di Siena"
+repository-code: "https://github.com/fpettini/MrkA_Ab"
+license: MIT
+date-released: 2026-11-03

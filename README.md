@@ -32,3 +32,9 @@ struttura di partenza ──► preparazione (protonazione, topologia, solvatazi
 - Gli script di analisi scrivono la **provenienza** (sha256 di script e input, versioni dei pacchetti)
   in testa ai risultati tramite `provenienza.py`.
 - Numerazione dei residui: wt 42–202 (costrutto) in tutti gli script; vedi i README dei singoli filoni per le conversioni.
+
+## Licenza e citazione
+
+Licenza MIT con clausola di citazione (vedi [`LICENSE`](LICENSE)): chi usa gli script, o risultati ottenuti
+con essi, in un lavoro pubblico deve citare questo repository e, quando sarà disponibile, l'articolo
+indicato in [`CITATION.cff`](CITATION.cff).
