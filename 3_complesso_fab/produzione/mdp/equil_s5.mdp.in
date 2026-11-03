@@ -1,0 +1,57 @@
+; passo, HMR e intervalli di uscita li mette 06_repliche.sh (DT=4: 0.004, HMR 3; DT=2: 0.002, HMR 1); 4 fs HMR approvato dal revisore 31 ott 2026 con zero avvisi LINCS in equil_s5 e primi 10 ns
+; TEMPLATE -- non usare direttamente: eq.sh ne genera una copia per replica
+; sostituendo ${CONT} ${GVEL} ${GSEED} ${LSEED} ${DT} ${NSTEPS} ${HMR} ${NSTX} ${NSTE} (06_repliche.sh).
+; equil_s5: 20 ns NPT senza restraint. E' il punto di diramazione delle repliche:
+; le velocita' vengono RIGENERATE (gen-vel=yes, continuation=no) con un seme
+; diverso per replica, e questi 20 ns liberi decorrelano catene laterali, glicani
+; e solvente prima della produzione. Da scartare dalle analisi.
+; equil_s5: NPT senza restraint: finestra di rilassamento dei glicani (da scartare)  (20 ns)
+
+integrator               = md
+dt                       = ${DT}
+nsteps                   = ${NSTEPS}
+continuation             = ${CONT}
+gen-vel                  = ${GVEL}
+gen-temp                 = 298
+gen-seed                 = ${GSEED}
+ld-seed                  = ${LSEED}
+
+constraints              = h-bonds
+mass-repartition-factor  = ${HMR}
+lincs-order              = 6
+constraint-algorithm     = LINCS
+
+; --- non-bonded (AMBER ff19SB + OPC, ioni K/CL per OPC) ---
+cutoff-scheme            = Verlet
+nstlist                  = 100
+coulombtype              = PME
+rcoulomb                 = 1.2
+vdwtype                  = Cut-off
+vdw-modifier             = Potential-shift
+rvdw                     = 1.2
+rlist                    = 1.2
+DispCorr                 = EnerPres
+pbc                      = xyz
+
+; --- temperatura ---
+tcoupl                   = v-rescale
+tc-grps                  = Protein_Other Water_and_ions
+tau-t                    = 1.0   1.0
+ref-t                    = 298 298
+
+; --- pressione: C-rescale (valido anche in produzione) ---
+pcoupl                   = C-rescale
+pcoupltype               = isotropic
+tau-p                    = 5.0
+compressibility          = 4.5e-5
+ref-p                    = 1.0
+refcoord-scaling         = com
+
+nstcomm                  = 100
+comm-mode                = linear
+comm-grps                = Protein_Other Water_and_ions
+
+; --- output ---
+nstxout-compressed       = ${NSTX}
+nstenergy                = ${NSTE}
+nstlog                   = ${NSTE}

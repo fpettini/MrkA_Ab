@@ -1,0 +1,23 @@
+; min_c3: steepest descent con acqua rigida (OPC, SETTLE). Il CG non gestisce i vincoli dell'acqua rigida
+; ("Minimizer 'cg' can not handle constraint failures", 31 ott 2026), quindi si resta su steep.
+define                   = -DPOSRES -DPOSRES_FC=1000
+
+integrator               = steep
+emtol                    = 100
+emstep                   = 0.005
+nsteps                   = 50000
+; --- non-bonded (AMBER ff19SB + OPC, ioni K/CL per OPC) ---
+cutoff-scheme            = Verlet
+nstlist                  = 10
+coulombtype              = PME
+rcoulomb                 = 1.2
+vdwtype                  = Cut-off
+vdw-modifier             = Potential-shift
+rvdw                     = 1.2
+rlist                    = 1.2
+DispCorr                 = EnerPres
+pbc                      = xyz
+
+constraints              = none
+nstenergy                = 500
+nstlog                   = 500

@@ -1,0 +1,24 @@
+; min_c2: minimizzazione STEEP in doppia precisione (gmx_d)
+; backbone 400 kJ/mol/nm2, zuccheri LIBERI, anelli dei piranosi vincolati
+define                   = -DPOSRES -DPOSRES_FC=1000
+
+integrator               = steep
+emtol                    = 500
+emstep                   = 0.005
+nsteps                   = 50000
+
+; --- non-bonded (AMBER ff19SB + OPC, ioni K/CL per OPC) ---
+cutoff-scheme            = Verlet
+nstlist                  = 10
+coulombtype              = PME
+rcoulomb                 = 1.2
+vdwtype                  = Cut-off
+vdw-modifier             = Potential-shift
+rvdw                     = 1.2
+rlist                    = 1.2
+DispCorr                 = EnerPres
+pbc                      = xyz
+
+constraints              = none
+nstenergy                = 500
+nstlog                   = 500

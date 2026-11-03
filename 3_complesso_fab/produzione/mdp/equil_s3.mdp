@@ -1,0 +1,46 @@
+; equil_s3: NPT, backbone 400, zuccheri liberi  (10 ns)
+define                   = -DPOSRES -DPOSRES_FC=400
+
+integrator               = md
+dt                       = 0.002
+nsteps                   = 5000000
+continuation             = yes
+gen-vel                  = no
+
+constraints              = h-bonds
+constraint-algorithm     = LINCS
+
+; --- non-bonded (AMBER ff19SB + OPC, ioni K/CL per OPC) ---
+cutoff-scheme            = Verlet
+nstlist                  = 100
+coulombtype              = PME
+rcoulomb                 = 1.2
+vdwtype                  = Cut-off
+vdw-modifier             = Potential-shift
+rvdw                     = 1.2
+rlist                    = 1.2
+DispCorr                 = EnerPres
+pbc                      = xyz
+
+; --- temperatura ---
+tcoupl                   = v-rescale
+tc-grps                  = Protein_Other Water_and_ions
+tau-t                    = 1.0   1.0
+ref-t                    = 298 298
+
+; --- pressione: C-rescale (valido anche in produzione) ---
+pcoupl                   = C-rescale
+pcoupltype               = isotropic
+tau-p                    = 5.0
+compressibility          = 4.5e-5
+ref-p                    = 1.0
+refcoord-scaling         = com
+
+nstcomm                  = 100
+comm-mode                = linear
+comm-grps                = Protein_Other Water_and_ions
+
+; --- output ---
+nstxout-compressed       = 25000
+nstenergy                = 5000
+nstlog                   = 5000
