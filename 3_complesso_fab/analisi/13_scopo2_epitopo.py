@@ -9,12 +9,14 @@ Soglia (involucro del legato): 95 percentile della stessa RMSD sulle repliche va
 dallo scarto a T3; sensibilita' 90 e 99 percentile e 95 percentile per singola replica; segnalata se > 2 A.
 Per ogni replica valida del libero, finestra dallo scarto a T2: frazione dei fotogrammi entro soglia (RMSD <= soglia),
 uscite e rientri (almeno 1 ns di fila fuori / dentro; i tratti piu' corti non cambiano lo stato), decorso a blocchi.
-Esiti (k = ceil(0.8 x valide), con 10 valide 8): popolata = frazione >= 0.5 in >= k repliche e almeno un ciclo
-uscita-rientro in >= 5 repliche; non distinguibile dalla memoria della partenza = frazione >= 0.5 in >= k ma cicli
-in meno di 5; non popolata = frazione <= 0.05 in >= k; intermedia = il resto; con meno di 8 valide: non concludibile.
-Vale solo se l'esito e' lo stesso con scarto 50 e 100 ns, altrimenti "non robusto".
-NON NEL DOC: percentile con interpolazione lineare (numpy); stato iniziale = primo tratto di almeno 1 ns; un
-"ingresso" senza uscita precedente nella finestra non conta come rientro; blocchi del decorso da 50 ns.
+Esiti (k = ceil(0.8 x valide), con 10 valide 8; c = ceil(0.5 x valide), con 10 valide 5): popolata = frazione >= 0.5
+in >= k repliche e almeno un ciclo uscita-rientro in >= c repliche; non distinguibile dalla memoria della partenza =
+frazione >= 0.5 in >= k ma cicli in meno di c; non popolata = frazione <= 0.05 in >= k; intermedia = il resto; con
+meno di 8 valide: non concludibile. Vale solo se l'esito e' lo stesso con scarto 50 e 100 ns, altrimenti "non robusto".
+NON NEL DOC (decise dal revisore il 5 nov): percentile con interpolazione lineare (numpy); stato iniziale = primo
+tratto di almeno 1 ns; un "ingresso" senza uscita precedente nella finestra non conta come rientro; blocchi del
+decorso da 50 ns; c = ceil(0.5 x valide) invece di 5 fisse.
+Analisi INTERMEDIA (condizioni del revisore, 5 nov): soglia e numeri per replica, nessun esito.
 Scrive OUT/scopo2_epitopo.txt e .json.
 """
 import os, json, argparse
@@ -29,6 +31,7 @@ arg = ap.parse_args()
 ctrl = C.leggi_controlli(arg.out)
 serie = C.leggi_cache(arg.cache)
 T3, T2 = ctrl["T3_ns"], ctrl["T2_ns"]; stato = ctrl["stato"]["scopo2"]
+FIN = stato == "FINALE"
 
 
 def transizioni(dentro, nmin):
@@ -57,11 +60,13 @@ def transizioni(dentro, nmin):
 
 
 def esito(fr, cicli, n, k):
+    if not FIN:
+        return "-"
     if n < C.MIN_VALIDE["libero"]:
         return "non concludibile"
     ge = sum(f >= 0.5 for f in fr); le = sum(f <= 0.05 for f in fr); cy = sum(c >= 1 for c in cicli)
     if ge >= k:
-        return "popolata" if cy >= C.CICLI_MIN else "non distinguibile dalla memoria della partenza"
+        return "popolata" if cy >= C.soglia_cicli(n) else "non distinguibile dalla memoria della partenza"
     if le >= k:
         return "non popolata"
     return "intermedia"
@@ -78,7 +83,8 @@ for sc in C.SCARTI:
     soglie = {"P95": float(np.percentile(tutto, 95)), "P90": float(np.percentile(tutto, 90)), "P99": float(np.percentile(tutto, 99))}
     per_rep = {r: float(np.percentile(x, 95)) for r, x in rc.items()}
     soglie["P95_replica_min"] = min(per_rep.values()); soglie["P95_replica_max"] = max(per_rep.values())
-    n = len(vl); k = C.soglia_repliche(n) if n else 0
+    n = len(vl); k = (C.soglia_repliche(n) if n else 0) if FIN else None
+    kc = (C.soglia_cicli(n) if n else 0) if FIN else None
     lib = {}
     for r in vl:
         d = serie[("libero", r)]
@@ -96,13 +102,15 @@ for sc in C.SCARTI:
                 b0 += C.BLOCCO_SCOPO2_NS
             lib[r][nome] = {"frazione": float(dentro.mean()), "blocchi": blocchi, **transizioni(dentro, nmin)}
     es = {nome: esito([lib[r][nome]["frazione"] for r in vl], [lib[r][nome]["cicli"] for r in vl], n, k) for nome in soglie}
-    ris[sc] = {"complesso_valide": vc, "libero_valide": vl, "k": k, "soglie": soglie, "soglia_per_replica": per_rep,
+    ris[sc] = {"complesso_valide": vc, "libero_valide": vl, "k": k, "k_cicli": kc, "soglie": soglie, "soglia_per_replica": per_rep,
                "complesso_media": {r: float(x.mean()) for r, x in rc.items()}, "libero": lib, "esiti": es}
 
-fin = {}
-for nome in ris[50.0]["soglie"]:
-    e = [ris[sc]["esiti"][nome] for sc in C.SCARTI]
-    fin[nome] = e[0] if e[0] == e[1] else f"non robusto ({e[0]} a 50 ns, {e[1]} a 100 ns)"
+fin = None
+if FIN:
+    fin = {}
+    for nome in ris[50.0]["soglie"]:
+        e = [ris[sc]["esiti"][nome] for sc in C.SCARTI]
+        fin[nome] = e[0] if e[0] == e[1] else f"non robusto ({e[0]} a 50 ns, {e[1]} a 100 ns)"
 
 P = C.prov(__file__, [v["_file"] for v in serie.values()] + [os.path.join(arg.out, "controlli.json")],
            {"cache": arg.cache, "out": arg.out}, {"CACHE": arg.cache, "OUT": arg.out})
@@ -110,7 +118,8 @@ L = C.testo_prov(P) + C.avviso_intermedia(stato)
 L += ["", f"Scopo 2 ({stato}): soglia dal complesso fino a T3 = {T3:.1f} ns; libero fino a T2 = {T2:.1f} ns."]
 for sc in C.SCARTI:
     r = ris[sc]; s = r["soglie"]
-    L += ["", f"=== Scarto {sc:.0f} ns: complesso valide {r['complesso_valide']}, libero valide {r['libero_valide']} (soglia {r['k']})",
+    L += ["", f"=== Scarto {sc:.0f} ns: complesso valide {r['complesso_valide']}, libero valide {r['libero_valide']}"
+          + (f" (soglia frazioni {r['k']}, cicli {r['k_cicli']})" if FIN else ""),
           f"Soglia P95 = {s['P95']:.3f} A (P90 {s['P90']:.3f}, P99 {s['P99']:.3f}; P95 per replica {s['P95_replica_min']:.3f}-{s['P95_replica_max']:.3f})"
           + ("  ATTENZIONE: soglia > 2 A" if s["P95"] > C.SOGLIA_EPI_FLAG else ""),
           "RMSD media nel complesso: " + ", ".join(f"{x} {v:.2f}" for x, v in r["complesso_media"].items()),
@@ -120,9 +129,11 @@ for sc in C.SCARTI:
         L.append(f"{x:8s}{v['rmsd_media']:9.2f}{p['frazione']:9.2f}{p['uscite']:5d}{p['rientri']:8d}{p['ingressi_senza_uscita']:5d}"
                  f"{(p['stato_iniziale'] or '-'):>7s}{v['P90']['frazione']:9.2f}{v['P99']['frazione']:9.2f}   "
                  + " ".join(f"{b[2]:.2f}" if b[2] is not None else "-" for b in p["blocchi"]))
-    L.append("Esiti a questo scarto: " + "; ".join(f"{k} {v}" for k, v in r["esiti"].items()))
-L += ["", "Esito (stesso a 50 e 100 ns): " + "; ".join(f"{k}: {v}" for k, v in fin.items()),
-      "", "Da riportare con i risultati (documento dei criteri): l'acqua interna E206 sta nel cuore dell'epitopo",
+    if FIN:
+        L.append("Esiti a questo scarto: " + "; ".join(f"{k} {v}" for k, v in r["esiti"].items()))
+L += [""] + (["Esito (stesso a 50 e 100 ns): " + "; ".join(f"{k}: {v}" for k, v in fin.items())] if FIN else
+             ["Nessun esito: analisi intermedia (solo numeri per replica)."])
+L += ["", "Da riportare con i risultati (documento dei criteri): l'acqua interna E206 sta nel cuore dell'epitopo",
       "(N di Asp86 e Cys87, O di Asp168); OD1 di Asp40 lega l'N di Ala90; l'epitopo circonda il ponte Cys43-Cys87 e",
       "le MD sono solo ossidate. Formulazioni: mai 'selezione conformazionale' ne' 'induced fit'."]
 open(os.path.join(arg.out, "scopo2_epitopo.txt"), "w").write("\n".join(L) + "\n")

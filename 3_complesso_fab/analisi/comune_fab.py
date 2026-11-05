@@ -2,7 +2,8 @@
 
 Le definizioni (residui, soglie, scarti, conteggi) vengono dal documento "MrkA-Fab: criteri di analisi"
 (https://claude.ai/artifact/DPDeZEeE17qTTZxD3ukXdX), chiuso il 2 nov 2026 prima di aprire le traiettorie.
-Le scelte che il documento non fissa sono marcate "NON NEL DOC" e vanno confermate dal revisore.
+Le scelte operative che il documento non fissava sono marcate "NON NEL DOC" (rev. 5 nov): il revisore le ha decise
+il 5 nov 2026, prima di aprire le traiettorie, e sono nel registro del documento.
 
 Numerazione: wt della catena A (costrutto 36-217), Fab L 1-214 e H 1-223, come in mrka-fab_completo.pdb
 (catene A, B = L, C = H). Nei gro i numeri si ripetono fra le catene e non c'e' l'identificativo di catena:
@@ -13,7 +14,7 @@ import os, json, math, hashlib, platform, datetime, itertools
 import numpy as np
 from importlib import metadata
 
-VERSIONE = "analisi_fab 2026-11-05"
+VERSIONE = "analisi_fab 2026-11-05b"
 PACCHETTI = ["numpy", "scipy", "MDAnalysis", "matplotlib"]
 
 # ---------------- definizioni fissate nel documento dei criteri ----------------
@@ -31,14 +32,19 @@ MIN_VALIDE = {"complesso": 4, "libero": 8}  # sotto: "non concludibile"
 RMSD_CORE_MAX, RMSD_CORE_FRAZ = 2.0, 0.5   # replica non valida: RMSD 43 Ca > 2.0 A in > 50% dei fotogrammi
 PI_MIN, PI_FRAZ = 12.0, 0.05               # mindist -pi < 1.2 nm: segnalata se succede, non valida in > 5%
 CONTATTI_PERSI_FRAZ = 0.5                  # complesso: non valida se perde > 50% dei contatti del cristallo
+OCC_PERSO = 0.5                            # NON NEL DOC (rev. 5 nov): perso = occupanza < 0.5 nella finestra (come lo scopo 1)
 CENTRI_MAX = 5.0                           # complesso: non valida se la distanza dei centri cresce > 5 A
+CENTRI_FRAZ = 0.5                          # NON NEL DOC (rev. 5 nov): ... in > 50% dei fotogrammi della finestra
+# NON NEL DOC (rev. 5 nov): centri = Ca dell'Fv (VL 1-107 + VH 1-117, ricostruiti esclusi) e i 43 Ca del core di A
+AFAB_MAX = 4.0                             # NON NEL DOC (rev. 5 nov): riassemblaggio, distanza minima A-Fab < 4 A
+PI_TOLL = 0.005                            # NON NEL DOC (rev. 5 nov): accordo con gmx mindist -pi (A)
 SOGLIA_EPI_FLAG = 2.0                      # scopo 2: si segnala una soglia sopra 2 A
 ISTERESI_NS = 1.0                          # scopo 2: uscita/rientro = almeno 1 ns di fila
-CICLI_MIN = 5                              # scopo 2: cicli completi in almeno 5 repliche
-# NON NEL DOC (descrittivo): residui ricostruiti, esclusi dall'RMSD del Fab; Fv = VL 1-107 + VH 1-117
+CICLI_FRAZ = 0.5                           # scopo 2: cicli in almeno 5/10 repliche; con meno valide ceil(0.5 x valide) (rev. 5 nov)
+# NON NEL DOC (rev. 5 nov): residui ricostruiti, esclusi dall'RMSD del Fab e dell'Fv e dai centri; Fv = VL 1-107 + VH 1-117
 RICOSTRUITI = {"A": [116, 117], "L": [214], "H": [1, 9, 10, 218, 219, 220, 221, 222, 223]}
 FV = {"L": (1, 107), "H": (1, 117)}
-BLOCCO_SCOPO2_NS = 50.0                    # NON NEL DOC: blocchi del decorso dello scopo 2 (descrittivo)
+BLOCCO_SCOPO2_NS = 50.0                    # NON NEL DOC (rev. 5 nov): blocchi del decorso dello scopo 2 (descrittivo)
 PI_CUT = 25.0                              # oltre 25 A la distanza dalle immagini si registra come "> 25"
 
 UNO = {'ALA': 'A', 'ARG': 'R', 'ASN': 'N', 'ASP': 'D', 'CYS': 'C', 'GLN': 'Q', 'GLU': 'E', 'GLY': 'G', 'HIS': 'H',
@@ -272,6 +278,22 @@ def assembla(Y, M, Minv, gruppi):
     return Y
 
 
+def piano_riassemblaggio(top):
+    """Piano per ricomponi() e gruppi per assembla(): nel complesso L accanto ad A e H accanto a L (10 e 16)."""
+    gruppi = []
+    if top.sistema == "complesso":
+        gruppi = [(top.indici("L"), top.indici("L", nomi=("CA",)), None, top.indici("A", nomi=("CA",))),
+                  (top.indici("H"), top.indici("H", nomi=("CA",)), None, top.indici("L", nomi=("CA",)))]
+    return top.piano_ricomposizione(), gruppi
+
+
+def riassembla(X, M, piano, gruppi):
+    """X (F,N,3), M (F,3,3): catene ricomposte e, nel complesso, riassemblate."""
+    Minv = np.linalg.inv(M)
+    Y = ricomponi(X, M, Minv, piano)
+    return assembla(Y, M, Minv, gruppi) if gruppi else Y
+
+
 def mindist_immagini(X, M, cut=PI_CUT):
     """Distanza minima fra la proteina (X, N x 3, ricomposta) e le sue immagini periodiche, come gmx mindist -pi
     (tutti gli atomi del gruppo). Restituisce nan se nessuna coppia e' entro cut."""
@@ -336,6 +358,11 @@ def soglia_repliche(n_valide):
     return math.ceil(0.8 * n_valide - 1e-9)
 
 
+def soglia_cicli(n_valide):
+    """scopo 2: repliche con almeno un ciclo uscita-rientro; 5 con 10 valide, ceil(0.5 x valide) con meno (rev. 5 nov)"""
+    return math.ceil(CICLI_FRAZ * n_valide - 1e-9)
+
+
 def finestra(t, scarto, fine):
     return (t >= scarto - 1e-6) & (t <= fine + 1e-6)
 
@@ -389,12 +416,13 @@ def leggi_controlli(out):
 
 
 def valide(ctrl, sistema, finestra_, scarto):
-    """Repliche valide (comprese quelle "da decidere", segnalate a parte) per sistema, finestra e scarto."""
+    """Repliche valide per sistema, finestra e scarto."""
     return ctrl["riepilogo"][f"{sistema}|{finestra_}|{int(scarto)}"]
 
 
 def avviso_intermedia(stato):
     if stato == "FINALE":
         return []
-    return ["# ANALISI INTERMEDIA: dati parziali, numeri solo descrittivi. Gli esiti sotto applicano la regola del",
-            "# documento alle repliche disponibili solo per mostrarne la posizione: NON sono esiti vincolanti."]
+    return ["# ANALISI INTERMEDIA, solo descrittiva (condizioni del revisore, 5 nov 2026): numeri per replica; le regole",
+            "# di conteggio (ceil 0.8, 4/5, 8/10, cicli, 'non concludibile') e gli esiti non si applicano; niente test;",
+            "# nessuna frase del paper da questi numeri; nessuna replica si rilancia o si sostituisce per quello che si vede."]

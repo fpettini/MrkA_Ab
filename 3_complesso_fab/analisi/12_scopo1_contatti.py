@@ -11,6 +11,8 @@ fotogrammi in contatto. Con N repliche valide e k = ceil(0.8 N):
 Un esito vale solo se e' lo stesso con scarto 50 e 100 ns, altrimenti "non robusto". Con meno di 4 repliche
 valide: "non concludibile". Riferimento: contatti del cristallo completato con lo stesso criterio (a 4.0 A sono
 gli stessi del cristallo originale: 27 coppie, verificato il 5 nov 2026).
+Analisi INTERMEDIA (condizioni del revisore, 5 nov): solo le frazioni per replica; nessun esito (persistente, perso,
+nuovo, hotspot) e nessuna soglia di repliche.
 Scrive OUT/scopo1_contatti.txt, .json e .csv (tutte le coppie, tutte le distanze e tutti gli scarti).
 """
 import os, json, csv, argparse
@@ -26,6 +28,8 @@ arg = ap.parse_args()
 ctrl = C.leggi_controlli(arg.out)
 serie = C.leggi_cache(arg.cache)
 T3 = ctrl["T3_ns"]; stato = ctrl["stato"]["scopo1"]
+FIN = stato == "FINALE"
+NO = "-"                      # nessun esito nell'analisi intermedia
 _, rn = C.leggi_pdb(arg.pdb)
 nome = lambda c, k: f"{c}{k}{rn[c][k]}"
 
@@ -40,6 +44,8 @@ def frazioni(d, w, cut):
 
 
 def esito(cr, f, k, n):
+    if not FIN:
+        return NO
     if n < C.MIN_VALIDE["complesso"]:
         return "non concludibile"
     ge = sum(x >= 0.5 for x in f); lt = len(f) - ge
@@ -54,7 +60,7 @@ for cut in C.CONTATTI:
     ris[cut] = {}
     for sc in C.SCARTI:
         v = C.valide(ctrl, "complesso", "complesso", sc)
-        reps = v["valide"]; n = len(reps); k = C.soglia_repliche(n) if n else 0
+        reps = v["valide"]; n = len(reps); k = (C.soglia_repliche(n) if n else 0) if FIN else None
         fr = {r: frazioni(serie[("complesso", r)], C.finestra(serie[("complesso", r)]["t_ns"], sc, T3), cut) for r in reps}
         coppie = sorted(set(cris).union(*[set(x) for x in fr.values()]))
         ris[cut][sc] = {"repliche": reps, "k": k, "coppie": {}}
@@ -65,6 +71,8 @@ for cut in C.CONTATTI:
 
 
 def finale(cut, p):
+    if not FIN:
+        return NO
     e = [ris[cut][sc]["coppie"][p]["esito"] if p in ris[cut][sc]["coppie"] else "senza esito" for sc in C.SCARTI]
     return e[0] if e[0] == e[1] else f"non robusto ({e[0]} a 50 ns, {e[1]} a 100 ns)"
 
@@ -76,35 +84,47 @@ L += ["", f"Scopo 1 ({stato}): finestra dallo scarto a T3 = {T3:.1f} ns; contatt
 for cut in C.CONTATTI:
     r50 = ris[cut][50.0]
     L.append("")
-    L.append(f"=== {cut} A{' (principale)' if cut == C.CONTATTO_PRINCIPALE else ' (sensibilita)'}: repliche valide {r50['repliche']}, "
-             f"soglia {r50['k']}/{len(r50['repliche'])}")
+    L.append(f"=== {cut} A{' (principale)' if cut == C.CONTATTO_PRINCIPALE else ' (sensibilita)'}: repliche valide {r50['repliche']}"
+             + (f", soglia {r50['k']}/{len(r50['repliche'])}" if FIN else ""))
     tutte = sorted(set(ris[cut][50.0]["coppie"]) | set(ris[cut][100.0]["coppie"]))
     fin = {p: finale(cut, p) for p in tutte}
     cont = {}
     for p, e in fin.items():
         cont[e.split(" (")[0]] = cont.get(e.split(" (")[0], 0) + 1
     ncr = sum(1 for p in tutte if ris[cut][50.0]["coppie"].get(p, {}).get("cristallo"))
-    L.append(f"Coppie nel cristallo: {ncr}. Esiti: " + ", ".join(f"{k} {v}" for k, v in sorted(cont.items())))
+    if FIN:
+        L.append(f"Coppie nel cristallo: {ncr}. Esiti: " + ", ".join(f"{k} {v}" for k, v in sorted(cont.items())))
+    else:
+        L.append(f"Coppie nel cristallo: {ncr}. Per replica (scarto 50 ns), contatti del cristallo con frazione >= 0.5: "
+                 + ", ".join(f"{r} {sum(1 for p, c in r50['coppie'].items() if c['cristallo'] and c['frazioni'][i] >= 0.5)}"
+                             for i, r in enumerate(r50["repliche"])))
     if cut != C.CONTATTO_PRINCIPALE:
         continue
-    L.append("Contatti del cristallo, frazione per replica (scarto 50 ns) ed esito:")
-    L.append(f"  {'coppia':28s}" + "".join(f"{r:>7s}" for r in r50["repliche"]) + "   esito")
+    L.append("Contatti del cristallo, frazione per replica (scarto 50 ns)" + (" ed esito:" if FIN else ":"))
+    L.append(f"  {'coppia':28s}" + "".join(f"{r:>7s}" for r in r50["repliche"]) + ("   esito" if FIN else ""))
     for p in tutte:
         c = r50["coppie"].get(p)
         if c and c["cristallo"]:
-            L.append(f"  {nome('A', p[0]) + ' - ' + nome(p[1], p[2]):28s}" + "".join(f"{x:7.2f}" for x in c["frazioni"]) + f"   {fin[p]}")
+            L.append(f"  {nome('A', p[0]) + ' - ' + nome(p[1], p[2]):28s}" + "".join(f"{x:7.2f}" for x in c["frazioni"]) + (f"   {fin[p]}" if FIN else ""))
     L.append("Coppie non nel cristallo con frazione >= 0.5 in almeno una replica (scarto 50 ns):")
     nuovi = [p for p in tutte if p in r50["coppie"] and not r50["coppie"][p]["cristallo"] and r50["coppie"][p]["n_ge_0.5"] > 0]
     for p in nuovi:
         c = r50["coppie"][p]
-        L.append(f"  {nome('A', p[0]) + ' - ' + nome(p[1], p[2]):28s}" + "".join(f"{x:7.2f}" for x in c["frazioni"]) + f"   {fin[p]}")
+        L.append(f"  {nome('A', p[0]) + ' - ' + nome(p[1], p[2]):28s}" + "".join(f"{x:7.2f}" for x in c["frazioni"]) + (f"   {fin[p]}" if FIN else ""))
     if not nuovi:
         L.append("  nessuna")
-    L.append("Per residuo dell'epitopo (4.0 A, scarto 50 ns): contatti del cristallo persistenti / totali")
+    if FIN:
+        L.append("Per residuo dell'epitopo (4.0 A, scarto 50 ns): contatti del cristallo persistenti / totali")
+    else:
+        L.append("Per residuo dell'epitopo (4.0 A, scarto 50 ns): contatti del cristallo con frazione >= 0.5, per replica / totali")
     for a in C.EPITOPO:
         cr = [p for p in tutte if p[0] == a and r50["coppie"].get(p, {}).get("cristallo")]
-        per = [p for p in cr if fin[p] == "persistente"]
-        L.append(f"  {nome('A', a):10s} {len(per)}/{len(cr)}")
+        if FIN:
+            per = [p for p in cr if fin[p] == "persistente"]
+            L.append(f"  {nome('A', a):10s} {len(per)}/{len(cr)}")
+        else:
+            L.append(f"  {nome('A', a):10s} " + ", ".join(f"{r} {sum(1 for p in cr if r50['coppie'][p]['frazioni'][i] >= 0.5)}/{len(cr)}"
+                                                       for i, r in enumerate(r50["repliche"])))
 L += ["", "Note dal documento: interfaccia stabile partendo dal cristallo = attesa, pesa poco; i contatti del cristallo",
       "possono essere sottostimati (atomi di un altro monomero o del tag rimossi dopo il raffinamento)."]
 open(os.path.join(arg.out, "scopo1_contatti.txt"), "w").write("\n".join(L) + "\n")

@@ -9,6 +9,6 @@ preparazione/  01_ricostruisci_fab ─► 01b_acque_interne ─► 02_prepara_si
                ─► controlli_ff/04, 04b, 04c (GROMACS = OpenMM)  ─► densita/ (OPC+KCl vs OpenMM)
 produzione/    03_test_velocita ─► 05_equil_s1_s4 (+05a) ─► 07_test_deriva (2/3/4 fs) ─► 06_repliche
 analisi/       08_verifica_numerazione ─► 09_estrai (gmx) ─► 10_serie ─► 11_controlli
-               ─► 12 scopo 1 (contatti), 13 scopo 2 (epitopo), 14 scopo 3 (RMSF) ─► 15_figure
+               ─► 12 scopo 1 (contatti), 13 scopo 2 (epitopo), 14 scopo 3 (RMSF) ─► 15_figure; 16_verifica_immagini (gmx mindist -pi)
                (criteri fissati il 2 nov 2026, vedi analisi/README.md)
 ```

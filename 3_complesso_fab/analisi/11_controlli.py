@@ -9,14 +9,15 @@ T2 = minimo fra le repliche del libero (max 1 us): finestra del libero per lo sc
 Replica non valida (criteri): RMSD dei 43 Ca del core > 2.0 A in > 50% dei fotogrammi; STOP tecnico (controllo_T.txt);
 distanza dalle immagini periodiche < 12 A in > 5% dei fotogrammi (sotto 12 A in un fotogramma: solo segnalata);
 solo complesso: persi > 50% dei contatti MrkA-Fab del cristallo (4.0 A); distanza dei centri cresciuta > 5 A.
-Il documento non dice su che base si contano i contatti persi e la crescita dei centri (NON NEL DOC): si calcolano
-due letture per ciascuno e, se danno esiti diversi, la replica e' marcata "da decidere" (decide il revisore).
-  contatti persi, lettura 1: frazione dei contatti del cristallo con occupanza < 0.5 nella finestra (come "perso" nello scopo 1)
-  contatti persi, lettura 2: frazione dei fotogrammi in cui sono presenti meno della meta' dei contatti del cristallo, > 50%
-  centri, lettura 1: crescita > 5 A in > 50% dei fotogrammi (come la regola dell'RMSD)
-  centri, lettura 2: crescita > 5 A in almeno un fotogramma
-Centri = centri geometrici dei Ca della catena A e dei Ca del Fab (L + H); crescita rispetto al cristallo completato.
+Definizioni operative decise dal revisore il 5 nov 2026, prima dei dati (NON NEL DOC, nel registro del documento):
+  contatti persi: un contatto del cristallo e' perso se la sua occupanza nella finestra e' < 0.5 (come nello scopo 1);
+    la frazione dei fotogrammi con meno della meta' dei contatti del cristallo si riporta solo come descrittiva;
+  centri: centro dei Ca dell'Fv (VL 1-107 + VH 1-117, ricostruiti esclusi) e centro dei 43 Ca del core di MrkA;
+    non valida se la crescita rispetto al cristallo completato e' > 5 A in > 50% dei fotogrammi (il massimo e' descrittivo).
+Controllo del riassemblaggio (revisore, 5 nov): distanza minima A-Fab fra atomi pesanti < 4 A in ogni fotogramma;
+se no, ATTENZIONE (non decide la validita'). Il confronto con gmx mindist -pi e' in 16_verifica_immagini.py.
 Si registrano anche (non decidono la validita'): RMSD dei Ca del Fab e dell'Fv, proline cis, temperature per tratto.
+Analisi INTERMEDIA: validita' per replica come da criteri; le regole di conteggio (soglia, concludibile) non si riportano.
 Scrive OUT/controlli.txt e OUT/controlli.json (letto dagli script degli scopi).
 """
 import os, sys, json, argparse
@@ -51,7 +52,7 @@ def temperature(s, r):
 
 
 def misure(d, s, w, temp):
-    m, motivi, dubbi = {}, [], []
+    m, motivi = {}, []
     n = int(w.sum()); m["fotogrammi"] = n
     rc = d["rmsd_core"][w]
     m["rmsd_core_media"] = float(rc.mean()); m["rmsd_core_max"] = float(rc.max())
@@ -83,58 +84,63 @@ def misure(d, s, w, temp):
         occ = pres.mean(0); Q = pres.mean(1)
         m["contatti_cristallo"] = len(cristallo)
         m["Q_media"] = float(Q.mean())
-        m["contatti_persi_lettura1"] = float((occ < 0.5).mean())
-        m["fotogrammi_Q_sotto_0.5"] = float((Q < 0.5).mean())
-        l1 = m["contatti_persi_lettura1"] > C.CONTATTI_PERSI_FRAZ
-        l2 = m["fotogrammi_Q_sotto_0.5"] > 0.5
-        if l1 and l2:
-            motivi.append("persi > 50% dei contatti del cristallo (entrambe le letture)")
-        elif l1 != l2:
-            dubbi.append("contatti persi: le due letture discordano")
+        m["contatti_persi"] = float((occ < C.OCC_PERSO).mean())
+        m["fotogrammi_Q_sotto_0.5"] = float((Q < 0.5).mean())                 # descrittiva
+        if m["contatti_persi"] > C.CONTATTI_PERSI_FRAZ:
+            motivi.append("persi > 50% dei contatti del cristallo")
         dc = d["dcentri"][w] - float(d["dcentri_cristallo"])
-        m["centri_crescita_media"] = float(dc.mean()); m["centri_crescita_max"] = float(dc.max())
+        m["centri_crescita_media"] = float(dc.mean()); m["centri_crescita_max"] = float(dc.max())   # max descrittivo
         m["centri_frazione_sopra_5A"] = float((dc > C.CENTRI_MAX).mean())
-        l1 = m["centri_frazione_sopra_5A"] > 0.5
-        l2 = m["centri_crescita_max"] > C.CENTRI_MAX
-        if l1 and l2:
-            motivi.append("centri cresciuti > 5 A (entrambe le letture)")
-        elif l1 != l2:
-            dubbi.append("centri: le due letture discordano")
+        if m["centri_frazione_sopra_5A"] > C.CENTRI_FRAZ:
+            motivi.append("centri Fv-core cresciuti > 5 A in > 50% dei fotogrammi")
         m["rmsd_fab_media"] = float(d["rmsd_fab"][w].mean()); m["rmsd_fv_media"] = float(d["rmsd_fv"][w].mean())
         om = d["omega"][w]
         m["pro_cis_frazione"] = {str(p): float((np.abs(om[:, i]) < 90).mean()) for i, p in enumerate(d["pro_cis"])}
-    m["motivi"] = motivi; m["dubbi"] = dubbi
-    m["esito"] = "non valida" if motivi else ("da decidere" if dubbi else "valida")
+    m["motivi"] = motivi
+    m["esito"] = "non valida" if motivi else "valida"
     return m
 
 
-ris, righe = {}, []
+def riassemblaggio(d):
+    """distanza minima A-Fab (atomi pesanti) in ogni fotogramma riassemblato; nan in cache = oltre 5 A"""
+    if "dmin_afab" not in d:
+        raise SystemExit(f"{d['_file']}: serie senza dmin_afab, fatta con una versione vecchia di 10_serie.py: rilanciare 10")
+    x = np.nan_to_num(d["dmin_afab"], nan=np.inf)
+    sopra = np.where(x >= C.AFAB_MAX)[0]
+    return {"max_A": float(x.max()) if np.isfinite(x.max()) else None, "fotogrammi": int(len(x)),
+            "fotogrammi_sopra_4A": int(len(sopra)), "primi_tempi_sopra_4A_ns": [float(d["t_ns"][i]) for i in sopra[:10]],
+            "esito": "ok" if len(sopra) == 0 else "ATTENZIONE"}
+
+
+ris, rias, righe = {}, {}, []
 for (s, r), d in sorted(serie.items(), key=lambda x: (x[0][0], int(x[0][1][3:]))):
     temp = temperature(s, r)
+    if s == "complesso":
+        rias[f"{s}_{r}"] = riassemblaggio(d)
     ris[f"{s}_{r}"] = {}
     for sc in C.SCARTI:
         fin = {"complesso": {"complesso": T3}, "libero": {"scopo3": T3, "scopo2": T2}}[s]
         ris[f"{s}_{r}"][str(int(sc))] = {k: misure(d, s, C.finestra(d["t_ns"], sc, T), temp) for k, T in fin.items()}
 
+interm = any(v != "FINALE" for v in stato.values())
 riep = {}
 for s, finestre in (("complesso", ["complesso"]), ("libero", ["scopo3", "scopo2"])):
     for k in finestre:
         for sc in C.SCARTI:
             reps = [x for x in ris if x.startswith(s + "_")]
-            val = [x.split("_")[1] for x in reps if ris[x][str(int(sc))][k]["esito"] != "non valida"]
-            dub = [x.split("_")[1] for x in reps if ris[x][str(int(sc))][k]["esito"] == "da decidere"]
+            val = [x.split("_")[1] for x in reps if ris[x][str(int(sc))][k]["esito"] == "valida"]
             n = len(val)
-            riep[f"{s}|{k}|{int(sc)}"] = {"presenti": len(reps), "valide": C.ordina_repliche(val), "da_decidere": dub,
-                                          "soglia_repliche": C.soglia_repliche(n) if n else None,
-                                          "concludibile": n >= C.MIN_VALIDE[s]}
+            riep[f"{s}|{k}|{int(sc)}"] = {"presenti": len(reps), "valide": C.ordina_repliche(val),
+                                          "soglia_repliche": None if interm else (C.soglia_repliche(n) if n else None),
+                                          "concludibile": None if interm else n >= C.MIN_VALIDE[s]}
 
 P = C.prov(__file__, [v["_file"] for v in serie.values()] + [arg.pdb],
            {"cache": arg.cache, "out": arg.out, "pdb": arg.pdb, "finale": arg.finale}, {"CACHE": arg.cache, "OUT": arg.out})
 json.dump({"provenienza": P, "stato": stato, "T3_ns": T3, "T2_ns": T2, "lunghezze_ns": lung,
-           "contatti_cristallo_4A": [list(p) for p in cristallo], "repliche": ris, "riepilogo": riep},
+           "contatti_cristallo_4A": [list(p) for p in cristallo], "repliche": ris, "riassemblaggio": rias, "riepilogo": riep},
           open(os.path.join(arg.out, "controlli.json"), "w"), indent=1)
 
-L = C.testo_prov(P) + C.avviso_intermedia("FINALE" if all(v == "FINALE" for v in stato.values()) else "INTERMEDIA")
+L = C.testo_prov(P) + C.avviso_intermedia("INTERMEDIA" if interm else "FINALE")
 L += ["", f"Stato: scopo 1 {stato['scopo1']}, scopo 2 {stato['scopo2']}, scopo 3 {stato['scopo3']}",
       f"Lunghezze (ns di produzione): " + "; ".join(f"{s} " + ", ".join(f"{r} {v:.1f}" for r, v in sorted(x.items(), key=lambda y: int(y[0][3:]))) for s, x in lung.items()),
       f"Durate confermative: T3 = {T3:.1f} ns (complesso; libero per lo scopo 3), T2 = {T2:.1f} ns (libero, scopo 2)",
@@ -142,22 +148,33 @@ L += ["", f"Stato: scopo 1 {stato['scopo1']}, scopo 2 {stato['scopo2']}, scopo 3
 for sc in C.SCARTI:
     L.append(f"=== Scarto {sc:.0f} ns")
     L.append(f"{'replica':16s}{'finestra':10s}{'fotog':>6s}{'RMSDcore':>9s}{'>2A':>6s}{'immag.min':>10s}{'<12A':>6s}"
-             f"{'Q':>6s}{'persi1':>7s}{'Q<.5':>6s}{'dCentri':>8s}{'max':>6s}{'>5A':>6s}{'Fab':>6s}{'Fv':>6s}  esito")
+             f"{'Q':>6s}{'persi':>7s}{'Q<.5':>6s}{'dCentri':>8s}{'max':>6s}{'>5A':>6s}{'Fab':>6s}{'Fv':>6s}  esito")
     for x, v in ris.items():
         for k, m in v[str(int(sc))].items():
             im = f"{m['immagini_min_A']:.1f}" if m["immagini_min_A"] is not None else ">25"
             riga = f"{x:16s}{k:10s}{m['fotogrammi']:6d}{m['rmsd_core_media']:9.2f}{m['rmsd_core_frazione_sopra_2A']:6.2f}{im:>10s}{m['immagini_frazione_sotto_12A']:6.3f}"
             if "Q_media" in m:
-                riga += (f"{m['Q_media']:6.2f}{m['contatti_persi_lettura1']:7.2f}{m['fotogrammi_Q_sotto_0.5']:6.2f}"
+                riga += (f"{m['Q_media']:6.2f}{m['contatti_persi']:7.2f}{m['fotogrammi_Q_sotto_0.5']:6.2f}"
                          f"{m['centri_crescita_media']:8.2f}{m['centri_crescita_max']:6.2f}{m['centri_frazione_sopra_5A']:6.2f}"
                          f"{m['rmsd_fab_media']:6.2f}{m['rmsd_fv_media']:6.2f}")
             else:
                 riga += " " * 64
-            riga += f"  {m['esito']}" + (f" ({'; '.join(m['motivi'] + m['dubbi'])})" if m["motivi"] or m["dubbi"] else "")
+            riga += f"  {m['esito']}" + (f" ({'; '.join(m['motivi'])})" if m["motivi"] else "")
             if m["immagini_segnalata"]:
                 riga += " [immagini < 12 A in almeno un fotogramma]"
             L.append(riga)
     L.append("")
+L.append("Colonne: RMSDcore media e frazione > 2 A; immagini min e frazione < 12 A; Q = frazione media dei contatti del")
+L.append("cristallo presenti; persi = frazione dei contatti del cristallo con occupanza < 0.5 (decide); Q<.5 = frazione dei")
+L.append("fotogrammi con Q < 0.5 (descrittiva); dCentri = crescita media della distanza Fv-core, max (descrittivo) e frazione")
+L.append("dei fotogrammi > 5 A (decide); Fab e Fv = RMSD medio dei Ca (descrittivo).")
+L.append("")
+L.append(f"Controllo del riassemblaggio (tutti i fotogrammi): distanza minima A-Fab fra atomi pesanti, deve stare < {C.AFAB_MAX:.0f} A:")
+for x, v in rias.items():
+    L.append(f"  {x}: massimo {'> 5' if v['max_A'] is None else format(v['max_A'], '.2f')} A, fotogrammi >= {C.AFAB_MAX:.0f} A: "
+             f"{v['fotogrammi_sopra_4A']}/{v['fotogrammi']}  {v['esito']}"
+             + (f" (primi a {', '.join(f'{t:.1f}' for t in v['primi_tempi_sopra_4A_ns'])} ns)" if v["fotogrammi_sopra_4A"] else ""))
+L.append("")
 L.append("Proline cis del cristallo (frazione di fotogrammi con |omega| < 90, scarto 50 ns):")
 for x, v in ris.items():
     m = v["50"].get("complesso")
@@ -168,11 +185,11 @@ for x, v in ris.items():
     t = list(v["50"].values())[0]["temperatura"]
     L.append(f"  {x}: " + (t if isinstance(t, str) else f"{'STOP' if t['stop'] else 'nessuno STOP'}, {t['avvisi']} avvisi; {t['tratti']}"))
 L.append("")
-L.append("Riepilogo (soglia = ceil(0.8 x valide); non concludibile con meno di 4 valide nel complesso o 8 nel libero):")
+L.append("Riepilogo" + (" (analisi intermedia: regole di conteggio non applicate)" if interm else
+                     " (soglia = ceil(0.8 x valide); non concludibile con meno di 4 valide nel complesso o 8 nel libero)") + ":")
 for k, v in riep.items():
     s, f, sc = k.split("|")
     L.append(f"  {s:10s} {f:10s} scarto {sc:>3s}: presenti {v['presenti']}, valide {len(v['valide'])} {v['valide']}"
-             + (f", da decidere {v['da_decidere']}" if v["da_decidere"] else "")
-             + f", soglia {v['soglia_repliche']}, {'concludibile' if v['concludibile'] else 'NON CONCLUDIBILE'}")
+             + ("" if interm else f", soglia {v['soglia_repliche']}, {'concludibile' if v['concludibile'] else 'NON CONCLUDIBILE'}"))
 open(os.path.join(arg.out, "controlli.txt"), "w").write("\n".join(L) + "\n")
 print("\n".join(L))

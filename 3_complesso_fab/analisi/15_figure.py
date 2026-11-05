@@ -4,7 +4,8 @@ Uso (dalla cartella complesso_fab):
     python3 analisi/15_figure.py [--cache analisi/cache] [--out analisi/risultati]
 
 Scrive in OUT/:
-  fig_controlli.png      RMSD dei 43 Ca del core, contatti del cristallo presenti (Q), crescita della distanza dei centri,
+  fig_controlli.png      RMSD dei 43 Ca del core, contatti del cristallo presenti (Q), crescita della distanza dei centri
+                         (Ca dell'Fv e 43 Ca del core),
                          distanza minima dalle immagini, per replica, con le soglie di validita'
   fig_scopo1_contatti.png  frazione di fotogrammi in contatto per ogni contatto del cristallo (4.0 A, scarto 50 ns)
   fig_scopo2_epitopo.png   RMSD del backbone dell'epitopo per replica, con la soglia P95 dal complesso
@@ -59,7 +60,7 @@ def scarto(ax):
 # --- controlli
 fig, axs = plt.subplots(2, 2, figsize=(9, 5.5), sharex=True)
 pannelli = [("rmsd_core", "RMSD 43 Ca del core (A)", C.RMSD_CORE_MAX), ("Q", "contatti del cristallo presenti (frazione)", 0.5),
-            ("dcentri", "crescita distanza dei centri (A)", C.CENTRI_MAX), ("mindist_pi", "distanza minima dalle immagini (A)", C.PI_MIN)]
+            ("dcentri", "crescita distanza dei centri Fv - core (A)", C.CENTRI_MAX), ("mindist_pi", "distanza minima dalle immagini (A)", C.PI_MIN)]
 cr = [tuple(p) for p in ctrl["contatti_cristallo_4A"]]
 for ax, (k, tit, soglia) in zip(axs.ravel(), pannelli):
     for s in ("complesso", "libero"):
