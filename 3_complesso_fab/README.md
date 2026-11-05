@@ -8,5 +8,7 @@ Produzione a 2 fs (HMR 1): complesso 5 × 500 ns, libero 10 × 1 µs, a tratti a
 preparazione/  01_ricostruisci_fab ─► 01b_acque_interne ─► 02_prepara_sistemi (+02a_aiuto)
                ─► controlli_ff/04, 04b, 04c (GROMACS = OpenMM)  ─► densita/ (OPC+KCl vs OpenMM)
 produzione/    03_test_velocita ─► 05_equil_s1_s4 (+05a) ─► 07_test_deriva (2/3/4 fs) ─► 06_repliche
-analisi/       08_verifica_numerazione  (le analisi vere seguiranno i criteri fissati il 2 nov 2026)
+analisi/       08_verifica_numerazione ─► 09_estrai (gmx) ─► 10_serie ─► 11_controlli
+               ─► 12 scopo 1 (contatti), 13 scopo 2 (epitopo), 14 scopo 3 (RMSF) ─► 15_figure
+               (criteri fissati il 2 nov 2026, vedi analisi/README.md)
 ```
