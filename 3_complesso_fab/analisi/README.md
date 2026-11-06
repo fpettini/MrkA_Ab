@@ -9,7 +9,8 @@ documento.
 09_estrai.sh ─► 10_serie.py ─► 11_controlli.py ─► 12_scopo1_contatti.py
   (gmx: solo     (serie per  │   (validità delle     13_scopo2_epitopo.py
    proteina)      fotogramma)│    repliche)           14_scopo3_rmsf.py ─► 15_figure.py
-                             └─► 16_verifica_immagini.py (gmx mindist -pi su alcuni fotogrammi)
+                             ├─► 16_verifica_immagini.py (gmx mindist -pi su alcuni fotogrammi)
+                             └─► 17_cerniera.py (diagnostica descrittiva Fv-core, solo complesso)
 ```
 
 | Script | Cosa fa | Uscita |
@@ -23,6 +24,7 @@ documento.
 | `14_scopo3_rmsf.py` | Scopo 3: RMSF dei Cα e medie di segmento 87-101 e 138-147; Welch + Holm solo nell'analisi finale. | `scopo3_rmsf.txt`, `.json`, `scopo3_rmsf_per_residuo.csv` |
 | `15_figure.py` | Figure descrittive (serve matplotlib). | `fig_*.png` |
 | `16_verifica_immagini.py` | Controllo del revisore: su 8 fotogrammi per replica `gmx trjconv -pbc cluster` (Protein_Other) dalla traiettoria di produzione, poi `gmx mindist -pi`, contro la distanza di 10 ricalcolata senza tetto; tolleranza 0.005 Å. Serve GROMACS. | `verifica_immagini.txt`, `.json` |
+| `17_cerniera.py` | Diagnostica descrittiva, NON criterio (6 nov 2026, dopo l'intermedia a 250 ns; nota nel registro del doc): solo complesso, ogni 1 ns, RMSD del backbone dell'epitopo dopo fit sul core (= cache, controllo), sull'Fv e sull'epitopo stesso; Cα 90-93 dopo fit sul core e sull'Fv; rotazione e spostamento dell'Fv rispetto al core; scostamento per residuo dei Cα dell'epitopo. Nel libero il fit sull'epitopo non si calcola prima dei dati finali (revisore, 6 nov). | `diagnostica_cerniera.txt`, `.json`, `fig_diagnostica_cerniera.png` |
 | `comune_fab.py` | Definizioni dal documento (residui, soglie, scarti), lettura del gro, PBC, fit, provenienza. | – |
 
 ## Comandi (sulla workstation, dalla cartella `complesso_fab`)
@@ -36,6 +38,7 @@ python3 analisi/13_scopo2_epitopo.py
 python3 analisi/14_scopo3_rmsf.py
 python3 analisi/15_figure.py
 python3 analisi/16_verifica_immagini.py
+python3 analisi/17_cerniera.py
 ```
 
 - Pacchetti: Python 3 con numpy, scipy (≥ 1.7), MDAnalysis (≥ 2.0); matplotlib solo per le figure.
