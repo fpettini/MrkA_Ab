@@ -55,11 +55,21 @@ for S in $SISTEMI; do
     echo "$S $r: estraggo 0-$FINO ns (tinit $TINIT ps, fino a $FINE_PS ps) ..."
     echo Protein_Other | $GMX trjconv -f "$RD/$r.xtc" -s "$RD/$r.tpr" -n "$D/index.ndx" -e "$FINE_PS" -o "$T" > "$OUT/trjconv_${S}_${r}.log" 2>&1 \
       || { echo "$S $r: trjconv fallito ($OUT/trjconv_${S}_${r}.log)"; rm -f "$T"; exit 1; }
-    # controllo: primo e ultimo fotogramma, numero di fotogrammi
-    $GMX check -f "$T" > "$OUT/check_${S}_${r}.log" 2>&1 || true
-    read -r NF ULT <<< "$( { tr '\r' '\n' < "$OUT/check_${S}_${r}.log" | grep -o 'Last frame *[0-9]* *time *[0-9.eE+-]*' || true; } | awk '{n=$3; t=$5} END{if (t != "") print n+1, t}')"
-    if ! awk -v u="$ULT" -v f="$FINE_PS" 'BEGIN{exit !(u != "" && (u - f < 0.5 && f - u < 0.5))}'; then
-      echo "$S $r: ultimo fotogramma a ${ULT:-?} ps invece di $FINE_PS (vedi $OUT/check_${S}_${r}.log)"; rm -f "$T"; exit 1
+    # controllo con gmx check: primo fotogramma, numero di fotogrammi e passo (tabella "Time"); ultimo fotogramma da
+    # "Last frame" di gmx check (GROMACS 2023), altrimenti da "Last written" di trjconv (2026, dove gmx check non lo
+    # scrive piu'). Deve valere: primo = tinit, ultimo = tinit + FINO, fotogrammi = (ultimo - primo) / passo + 1.
+    CK="$OUT/check_${S}_${r}.log"; TL="$OUT/trjconv_${S}_${r}.log"
+    $GMX check -f "$T" > "$CK" 2>&1 || true
+    PRIMO=$( { tr '\r' '\n' < "$CK" | grep -o 'Reading frame *0 time *[0-9.eE+-]*' || true; } | awk 'NR==1{print $5}')
+    read -r NF PASSO <<< "$(awk '$1=="Time" && NF==3 {print $2, $3}' "$CK")"
+    ULT=$( { tr '\r' '\n' < "$CK" | grep -o 'Last frame *[0-9]* *time *[0-9.eE+-]*' || true; } | awk 'END{print $5}')
+    [ -n "$ULT" ] || ULT=$( { tr '\r' '\n' < "$TL" | grep -o 'Last written: *frame *[0-9]* *time *[0-9.eE+-]*' || true; } | awk 'END{print $6}')
+    if ! awk -v p="$PRIMO" -v u="$ULT" -v n="$NF" -v d="$PASSO" -v a="$TINIT" -v f="$FINE_PS" 'BEGIN{
+           if (p == "" || u == "" || n == "" || d + 0 <= 0) exit 1
+           if (p - a > 0.5 || a - p > 0.5 || u - f > 0.5 || f - u > 0.5) exit 1
+           k = (u - p) / d + 1; exit !(k - n < 0.01 && n - k < 0.01) }'; then
+      echo "$S $r: controllo dell'estrazione fallito: primo fotogramma ${PRIMO:-?} ps (atteso $TINIT), ultimo ${ULT:-?} ps" \
+           "(atteso $FINE_PS), ${NF:-?} fotogrammi ogni ${PASSO:-?} ps (vedi $CK e $TL)"; rm -f "$T"; exit 1
     fi
     mv "$T" "$X"
     echo "$S $r: tinit $TINIT ps, $NF fotogrammi fino a $ULT ps; tpr sha256 $(sha256sum "$RD/$r.tpr" | cut -c1-16); $(basename "$X") sha256 $(sha256sum "$X" | cut -c1-16)" | tee -a "$PROV"
