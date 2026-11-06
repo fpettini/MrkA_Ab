@@ -14,7 +14,7 @@ import os, json, math, hashlib, platform, datetime, itertools
 import numpy as np
 from importlib import metadata
 
-VERSIONE = "analisi_fab 2026-11-05b"
+VERSIONE = "analisi_fab 2026-11-06"
 PACCHETTI = ["numpy", "scipy", "MDAnalysis", "matplotlib"]
 
 # ---------------- definizioni fissate nel documento dei criteri ----------------
@@ -343,6 +343,54 @@ def rmsd(A, B):
     return np.sqrt(((A - B) ** 2).sum(-1).mean(-1))
 
 
+# ---------------- scopo 2, misura secondaria (aggiunta il 6 nov 2026 dopo l'intermedia a 250 ns) ----------------
+SECONDARIA_ETICHETTA = "aggiunta il 6 nov dopo l'intermedia a 250 ns, per la rotazione Fv-core"
+
+
+def atomi_epitopo(top, pdb):
+    """Indici nel gro e coordinate del cristallo del backbone dell'epitopo (gli stessi atomi della primaria)."""
+    xyz, _ = leggi_pdb(pdb)
+    epi = [(k, n) for k in EPITOPO for n in BACKBONE]
+    return (np.array([top.atomo("A", k, n) for k, n in epi]), np.array([xyz["A"][(k, n)] for k, n in epi]))
+
+
+def rmsd_epitopo_proprio(Y, i_epi, r_epi):
+    """UNICA definizione della misura secondaria dello scopo 2 (revisore, 6 nov 2026): RMSD del backbone
+    dell'epitopo dal cristallo dopo fit sull'epitopo stesso. Y (F, N, 3) gia' ricomposto/riassemblato.
+    La usano 10 (complesso, in cache) e 13 (libero, solo a FINALE per lunghezze; controllo sul complesso)."""
+    P = Y[:, i_epi]
+    R, cP, cQ = kabsch(P, r_epi)
+    return rmsd(applica(P, R, cP, cQ), r_epi)
+
+
+def serie_epitopo_proprio(gro, xtc, sistema, pdb, blocco=200):
+    """La misura secondaria su tutti i fotogrammi di un xtc di 09, con la stessa lettura e lo stesso riassemblaggio
+    di 10 (stessi fotogrammi, nessun passo). Restituisce (t_ns dall'inizio dell'xtc, serie)."""
+    import MDAnalysis as mda
+    top = Topologia(gro, sistema, pdb)
+    piano, gruppi = piano_riassemblaggio(top)
+    i_epi, r_epi = atomi_epitopo(top, pdb)
+    u = mda.Universe(gro, xtc)
+    if u.trajectory.n_atoms != top.n:
+        raise SystemExit(f"{xtc}: atomi {u.trajectory.n_atoms}, nel gro {top.n}")
+    nf = u.trajectory.n_frames
+    T = np.empty(nf); out = np.empty(nf)
+    for a in range(0, nf, blocco):
+        b = min(nf, a + blocco)
+        X = np.empty((b - a, top.n, 3)); M = np.empty((b - a, 3, 3))
+        for j, ts in enumerate(u.trajectory[a:b]):
+            X[j] = ts.positions; M[j] = ts.triclinic_dimensions; T[a + j] = ts.time
+        out[a:b] = rmsd_epitopo_proprio(riassembla(X, M, piano, gruppi), i_epi, r_epi)
+    return np.round((T - T[0]) / 1000.0, 4), out
+
+
+def finale_per_lunghezze(lung):
+    """FINALE determinato solo dalle lunghezze (tutte le repliche del disegno alla durata massima), senza --finale:
+    condizione del revisore (6 nov 2026) per sbloccare la misura secondaria nel libero."""
+    T3, T2, _ = durate_da(lung)
+    return stato_analisi(lung, T3, T2, finale=False)["scopo2"] == "FINALE"
+
+
 def diedro(p0, p1, p2, p3):
     b0, b1, b2 = p0 - p1, p2 - p1, p3 - p2
     b1n = b1 / np.linalg.norm(b1, axis=-1, keepdims=True)
@@ -392,6 +440,10 @@ def durate(serie):
     lung = {}
     for (s, r), d in serie.items():
         lung.setdefault(s, {})[r] = float(d["t_ns"][-1])
+    return durate_da(lung)
+
+
+def durate_da(lung):
     T3 = min(min(lung.get("complesso", {"-": 0.0}).values()), DISEGNO["complesso"][1])
     T2 = min(min(lung.get("libero", {"-": 0.0}).values()), DISEGNO["libero"][1])
     return T3, T2, lung

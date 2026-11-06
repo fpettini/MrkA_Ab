@@ -17,7 +17,9 @@ Per ogni <sistema>_run<r>_0-<FINO>ns.xtc (se ce ne sono piu' d'uno per replica, 
     minima A-Fab fra atomi pesanti (controllo del riassemblaggio, nan se > 5 A); distanza fra il centro dei Ca
     dell'Fv (VL 1-107 + VH 1-117, ricostruiti esclusi) e il centro dei 43 Ca del core di A (revisore, 5 nov);
     RMSD dei Ca del Fab e dell'Fv (fit propri, residui ricostruiti esclusi); omega delle proline cis del cristallo
-    (L8, L95, L141, H151, H153).
+    (L8, L95, L141, H151, H153); RMSD del backbone dell'epitopo dopo fit sull'epitopo stesso (misura secondaria
+    dello scopo 2, aggiunta il 6 nov 2026: comune_fab.rmsd_epitopo_proprio). Nel libero la secondaria NON si
+    calcola qui: la calcola 13 solo a FINALE per lunghezze (condizione del revisore, 6 nov).
 Scrive CACHE/serie_<sistema>_run<r>.npz con la provenienza (sha256 di script, gro, xtc e pdb). Una serie gia'
 presente si rifa' se e' cambiata la traiettoria, questo script o comune_fab.py.
 Tempo: t_ns = tempo dall'inizio della produzione (primo fotogramma dell'xtc), s5 escluso.
@@ -72,8 +74,7 @@ def elabora(s, r, xtc):
     # gruppi di atomi
     resA = [k for k, _, _ in top.res["A"]]
     i_core = np.array([top.atomo("A", k, "CA") for k in C.CORE43]); r_core = np.array([rif("A", k, "CA") for k in C.CORE43])
-    epi = [(k, n) for k in C.EPITOPO for n in C.BACKBONE]
-    i_epi = np.array([top.atomo("A", k, n) for k, n in epi]); r_epi = np.array([rif("A", k, n) for k, n in epi])
+    i_epi, r_epi = C.atomi_epitopo(top, arg.pdb)          # stessi atomi per primaria e secondaria dello scopo 2
     i_caA = np.array([top.atomo("A", k, "CA") for k in resA])
     pep = [(top.atomo(c, a[0], "C"), top.atomo(c, b[0], "N")) for c in C.CATENE[s] for a, b in zip(top.res[c][:-1], top.res[c][1:])]
     pep = np.array(pep)
@@ -104,7 +105,7 @@ def elabora(s, r, xtc):
     T = np.empty(nf); RC = np.empty(nf); RE = np.empty(nf); PI = np.empty(nf); PEP = np.empty(nf); SSd = np.empty(nf)
     CA = np.empty((nf, len(i_caA), 3), np.float32)
     if cplx:
-        RF = np.empty(nf); RV = np.empty(nf); DC = np.empty(nf); DM = np.full(nf, np.nan); OM = np.empty((nf, len(C.PRO_CIS)))
+        RF = np.empty(nf); RV = np.empty(nf); DC = np.empty(nf); RP = np.empty(nf); DM = np.full(nf, np.nan); OM = np.empty((nf, len(C.PRO_CIS)))
         cf, ca_, cc, ck, cd = [], [], [], [], []
         ass_ctrl, ass_err = 0, 0
     vicini = np.array([v for v in C._VICINI if np.any(v != 0)])
@@ -122,6 +123,7 @@ def elabora(s, r, xtc):
         RE[a:b] = C.rmsd(C.applica(Y[:, i_epi], R, cP, cQ), r_epi)
         CA[a:b] = C.applica(Y[:, i_caA], R, cP, cQ).astype(np.float32)
         if cplx:
+            RP[a:b] = C.rmsd_epitopo_proprio(Y, i_epi, r_epi)     # scopo 2, secondaria: solo complesso
             R2, c2, q2 = C.kabsch(Y[:, i_fab], r_fab); RF[a:b] = C.rmsd(C.applica(Y[:, i_fab], R2, c2, q2), r_fab)
             R3, c3, q3 = C.kabsch(Y[:, i_fv], r_fv); RV[a:b] = C.rmsd(C.applica(Y[:, i_fv], R3, c3, q3), r_fv)
             DC[a:b] = np.linalg.norm(Y[:, i_core].mean(1) - Y[:, i_fv].mean(1), axis=-1)
@@ -169,7 +171,7 @@ def elabora(s, r, xtc):
                 provenienza=np.array(json.dumps(P)))
     msg = ""
     if cplx:
-        dati.update(rmsd_fab=RF, rmsd_fv=RV, dcentri=DC, dcentri_cristallo=d0, dmin_afab=DM, omega=OM,
+        dati.update(rmsd_epi_proprio=RP, rmsd_fab=RF, rmsd_fv=RV, dcentri=DC, dcentri_cristallo=d0, dmin_afab=DM, omega=OM,
                     pro_cis=np.array([f"{c}{k}" for c, k in C.PRO_CIS]),
                     c_f=np.concatenate(cf) if cf else np.zeros(0, np.int32), c_a=np.concatenate(ca_) if ca_ else np.zeros(0, np.int16),
                     c_c=np.concatenate(cc) if cc else np.zeros(0, np.int8), c_k=np.concatenate(ck) if ck else np.zeros(0, np.int16),

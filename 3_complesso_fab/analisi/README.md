@@ -17,10 +17,10 @@ documento.
 |---|---|---|
 | `08_verifica_numerazione.py` | Numerazione e sequenza di ogni catena nei `.gro` = `mrka-fab_completo.pdb` (prerequisito). | a schermo |
 | `09_estrai.sh` | Con `gmx trjconv` estrae il gruppo `Protein_Other` da ogni `run<r>.xtc`, dall'inizio della produzione (tinit del tpr) fino a `FINO` ns; salta le repliche che non ci sono arrivate. Non tocca i file di produzione e funziona anche mentre mdrun allunga l'xtc. | `traiettorie/` |
-| `10_serie.py` | Ricompone le catene spezzate dalle PBC e riassembla A, L e H; per fotogramma calcola RMSD dei 43 Cα, RMSD del backbone dell'epitopo, Cα della catena A dopo il fit, distanza dalle immagini (come `gmx mindist -pi`), contatti A–Fab entro 5 Å e distanza minima A–Fab, distanza fra i centri dell'Fv e dei 43 Cα del core, RMSD del Fab e dell'Fv, omega delle Pro cis. | `cache/serie_<sistema>_run<r>.npz` |
+| `10_serie.py` | Ricompone le catene spezzate dalle PBC e riassembla A, L e H; per fotogramma calcola RMSD dei 43 Cα, RMSD del backbone dell'epitopo, Cα della catena A dopo il fit, distanza dalle immagini (come `gmx mindist -pi`), contatti A–Fab entro 5 Å e distanza minima A–Fab, distanza fra i centri dell'Fv e dei 43 Cα del core, RMSD del Fab e dell'Fv, omega delle Pro cis; solo nel complesso anche la misura secondaria dello scopo 2 (RMSD dell'epitopo dopo fit sull'epitopo stesso). | `cache/serie_<sistema>_run<r>.npz` |
 | `11_controlli.py` | Validità delle repliche con scarto 50 e 100 ns (contatti persi = occupanza < 0.5; centri Fv–core > 5 Å in > 50% dei fotogrammi); controllo del riassemblaggio (A–Fab < 4 Å in ogni fotogramma); durate confermative T3 (complesso) e T2 (libero); stato INTERMEDIA/FINALE per scopo. | `risultati/controlli.txt`, `.json` |
 | `12_scopo1_contatti.py` | Scopo 1: contatti persistenti, persi e nuovi a 4.0 Å (3.5 e 5.0 di sensibilità). | `scopo1_contatti.txt`, `.json`, `.csv` |
-| `13_scopo2_epitopo.py` | Scopo 2: soglia P95 dal complesso, frazione entro soglia, uscite e rientri (1 ns) nel libero. | `scopo2_epitopo.txt`, `.json` |
+| `13_scopo2_epitopo.py` | Scopo 2: soglia P95 dal complesso, frazione entro soglia, uscite e rientri (1 ns) nel libero. Misura primaria (fit sul core, doc) e secondaria (fit sull'epitopo stesso, aggiunta il 6 nov 2026 dopo l'intermedia, approvata da francesco e dal revisore) affiancate, con "esiti concordi / discordi" nell'analisi finale. La secondaria del libero si calcola dagli xtc solo con lo stato FINALE per lunghezze (5 × 500 ns, 10 × 1 µs; con il solo `--finale` di 11, 13 si ferma); controllo: una replica del complesso ricalcolata dall'xtc = cache di 10 entro 1e-6 Å. | `scopo2_epitopo.txt`, `.json` |
 | `14_scopo3_rmsf.py` | Scopo 3: RMSF dei Cα e medie di segmento 87-101 e 138-147; Welch + Holm solo nell'analisi finale. | `scopo3_rmsf.txt`, `.json`, `scopo3_rmsf_per_residuo.csv` |
 | `15_figure.py` | Figure descrittive (serve matplotlib). | `fig_*.png` |
 | `16_verifica_immagini.py` | Controllo del revisore: su 8 fotogrammi per replica `gmx trjconv -pbc cluster` (Protein_Other) dalla traiettoria di produzione, poi `gmx mindist -pi`, contro la distanza di 10 ricalcolata senza tetto; tolleranza 0.005 Å. Serve GROMACS. | `verifica_immagini.txt`, `.json` |
@@ -68,3 +68,9 @@ python3 analisi/17_cerniera.py
   non valida per contatti persi e centri Fv–core); 16 con GROMACS 2023 su fotogrammi spezzati in una cella stretta
   (distanze 10-52 Å): differenza massima 0.0047 Å da `gmx mindist -pi`. Con l'uscita di `-pbc cluster` in xtc la
   differenza arrivava a 0.013 Å (riarrotondamento a 0.001 nm degli atomi spostati): per questo 16 scrive un trr.
+- 6 nov, misura secondaria dello scopo 2: 10 rifatto sui 4 complessi veri (campi vecchi uguali entro 2e-14 Å, primaria
+  identica: P95 3.904 Å); secondaria del complesso = MDAnalysis `rms.rmsd(superposition=True)` entro 1e-14 Å; controllo
+  di 13 (ricalcolo dall'xtc = cache) 0 Å. Sintetici: intermedia senza secondaria del libero; `--finale` senza lunghezze
+  -> 13 si ferma; cache senza secondaria -> 13 si ferma; FINALE per lunghezze (disegno ridotto solo nella copia di
+  collaudo) -> secondaria del libero calcolata, esiti affiancati con "concordi/discordi", nessun file della secondaria
+  del libero su disco.
