@@ -21,7 +21,7 @@ Per ogni <sistema>_run<r>_0-<FINO>ns.xtc (se ce ne sono piu' d'uno per replica, 
     dello scopo 2, aggiunta il 6 nov 2026: comune_fab.rmsd_epitopo_proprio). Nel libero la secondaria NON si
     calcola qui: la calcola 13 solo a FINALE per lunghezze (condizione del revisore, 6 nov).
 Scrive CACHE/serie_<sistema>_run<r>.npz con la provenienza (sha256 di script, gro, xtc e pdb). Una serie gia'
-presente si rifa' se e' cambiata la traiettoria, questo script o comune_fab.py.
+presente si rifa' se e' cambiato uno qualsiasi di xtc, gro, pdb, questo script o comune_fab.py.
 Tempo: t_ns = tempo dall'inizio della produzione (primo fotogramma dell'xtc), s5 escluso.
 """
 import os, sys, re, json, time, argparse, warnings
@@ -58,12 +58,14 @@ def trova():
 def elabora(s, r, xtc):
     gro = os.path.join(arg.trj, f"proteina_{s}.gro")
     out = os.path.join(arg.cache, f"serie_{s}_{r}.npz")
-    sha_xtc = C.sha256(xtc)
+    # si salta solo se TUTTI gli ingressi (xtc, gro, pdb, con le stesse etichette) e i due script coincidono con la
+    # provenienza della serie gia' presente (revisore, 7 nov 2026: prima si confrontava solo lo sha dell'xtc)
+    ingressi = {C.etichetta(p, BASI): C.sha256(p) for p in (gro, xtc, arg.pdb)}
     if os.path.exists(out) and not arg.rifai:
         vecchio = json.loads(str(np.load(out, allow_pickle=True)["provenienza"]))
-        if (sha_xtc in vecchio["input"].values() and vecchio["sha256_script"] == C.sha256(__file__)
-                and vecchio["sha256_comune_fab"] == C.sha256(C.__file__)):
-            print(f"   {s} {r}: serie gia' fatta da questa traiettoria con questi script, salto (--rifai per rifarla)")
+        if (vecchio.get("input") == ingressi and vecchio.get("sha256_script") == C.sha256(__file__)
+                and vecchio.get("sha256_comune_fab") == C.sha256(C.__file__)):
+            print(f"   {s} {r}: serie gia' fatta con questi xtc, gro, pdb e script, salto (--rifai per rifarla)")
             return
     top = C.Topologia(gro, s, arg.pdb)
     xyz, _ = C.leggi_pdb(arg.pdb)
