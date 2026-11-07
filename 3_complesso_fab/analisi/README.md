@@ -50,6 +50,8 @@ python3 analisi/17_cerniera.py
   sostituisce per quello che si vede (condizioni del revisore, 5 nov 2026). `--finale` in 11 dichiara finale un
   disegno ridotto, solo se lo decide francesco prima di guardare le traiettorie.
 - 10 rifà una serie se sono cambiati la traiettoria, `10_serie.py` o `comune_fab.py`.
+- Una sola versione per tutte le serie (revisore, 7 nov 2026): 11-17 si fermano se una cache non viene dal
+  `10_serie.py` e dal `comune_fab.py` attuali; basta rilanciare 10, che rifà solo quelle.
 - Ogni txt ha in testa la provenienza (sha256 di script, `comune_fab.py` e input, versioni, argomenti); 09 la
   scrive in `traiettorie/provenienza_09.txt`.
 - Mai il tpr come topologia in MDAnalysis (rinumera i residui): 10 usa `proteina_<sistema>.gro` e controlla
@@ -74,3 +76,6 @@ python3 analisi/17_cerniera.py
   -> 13 si ferma; cache senza secondaria -> 13 si ferma; FINALE per lunghezze (disegno ridotto solo nella copia di
   collaudo) -> secondaria del libero calcolata, esiti affiancati con "concordi/discordi", nessun file della secondaria
   del libero su disco.
+- 7 nov, una sola versione delle serie: sui sintetici con le cache del giorno prima 11 si ferma (15 su 15 di versione
+  diversa); dopo 10 l'intera catena 11-15 e 17 gira; con una sola cache vecchia rimessa (libero run3) 11 e 13 si
+  fermano e 10 rifà solo quella.

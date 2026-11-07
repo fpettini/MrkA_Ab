@@ -427,7 +427,26 @@ def leggi_cache(cache):
             out[(s, r)]["_file"] = os.path.join(cache, f)
     if not out:
         raise SystemExit(f"nessuna serie in {cache}")
+    controlla_versione_cache(out)
     return out
+
+
+def controlla_versione_cache(serie):
+    """Una sola versione per tutte le serie (revisore, 7 nov 2026): ogni cache deve venire da questo 10_serie.py
+    e da questo comune_fab.py, altrimenti primaria e secondaria dello scopo 2 (o due repliche) potrebbero venire da
+    codice diverso. 10_serie.py rifa' da solo le serie di versioni diverse."""
+    qui = os.path.dirname(os.path.abspath(__file__))
+    atteso = (sha256(os.path.join(qui, "10_serie.py")), sha256(os.path.abspath(__file__)))
+    diverse = {}
+    for (s, r), d in sorted(serie.items()):
+        P = json.loads(str(d["provenienza"]))
+        v = (P.get("sha256_script"), P.get("sha256_comune_fab"))
+        if v != atteso:
+            diverse.setdefault(f"10 {str(v[0])[:8]}, comune {str(v[1])[:8]}", []).append(f"{s} {r}")
+    if diverse:
+        raise SystemExit(f"{sum(map(len, diverse.values()))} serie su {len(serie)} fatte con una versione diversa da quella attuale "
+                         f"(10 {atteso[0][:8]}, comune {atteso[1][:8]}): "
+                         + "; ".join(f"{k}: {', '.join(x)}" for k, x in diverse.items()) + ". Rilanciare 10_serie.py, che le rifa'.")
 
 
 def ordina_repliche(rep):
