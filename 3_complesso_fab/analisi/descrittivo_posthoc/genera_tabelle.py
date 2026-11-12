@@ -255,7 +255,7 @@ if DESC:
               "occupancy per residue pair, with the most frequent atom pair (MrkA atom first; the arrow points from donor to acceptor). "
               f"Salt bridge: Lys NZ or Arg NE, NH1 or NH2 within {D['D_SB']} Å of a carboxylate oxygen of Asp or Glu. Pairs with an occupancy of at least 0.10 in at least one replica are listed. "
               "Crystal: minimum N/O–N/O distance of the pair in the completed model, which has no hydrogens (Å; for salt bridges, the N–O distance of the charged groups). "
-              f"Buried surface: Shrake–Rupley, probe {D['sonda']} Å, heavy atoms with Bondi radii, sum over the two partners, one frame per ns; mean per replica.\n\n"
+              f"Buried surface: total change in solvent-accessible surface on binding, summed over the two partners and not halved (Shrake–Rupley, {D['punti']} points per atom, probe {D['sonda']} Å, heavy atoms with Bondi radii), one frame per ns; mean per replica. The crystal value is computed in the same way on the completed model.\n\n"
               + md(righe, ["Quantity", "MrkA", "Fab", "Atoms", "Crystal", "Replica 1", "2", "3", "4", "5"]))
     F.append(f"interfaccia: BSA cristallo {cr['bsa']:.0f} A^2; per replica " + ", ".join(f"{x:.0f}" for x in bs) + "; rapporto " + ", ".join(f"{x / cr['bsa']:.2f}" for x in bs)
              + "; DS sui fotogrammi " + ", ".join(f"{S['bsa'][r]['ds']:.0f}" for r in CR))
