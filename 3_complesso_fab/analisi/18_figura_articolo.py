@@ -109,11 +109,12 @@ reps = rep(p50["libero"]); x = np.arange(1, len(reps) + 1)
 fp = [p50["libero"][r]["P95"]["frazione"] for r in reps]; fs = [q50["libero"][r]["P95"]["frazione"] for r in reps]
 cp = [p50["libero"][r]["P95"]["cicli"] for r in reps]; cs = [q50["libero"][r]["P95"]["cicli"] for r in reps]
 axB.axhline(0.5, color=INK2, ls="--", lw=0.6); axB.axhline(0.05, color=INK2, ls=":", lw=0.6)
+DX_B = 0.16                               # i due simboli di una replica stanno affiancati: sovrapposti, quello vuoto copriva il pieno
 for xi, a, b in zip(x, fp, fs):
-    axB.plot([xi, xi], [a, b], color=GRIGIO, lw=0.8, zorder=1)
-axB.plot(x, fp, "o", ms=5.5, color=ARANCIO, mec="white", mew=0.8, zorder=3,
+    axB.plot([xi - DX_B, xi + DX_B], [a, b], color=GRIGIO, lw=0.8, zorder=1)
+axB.plot(x - DX_B, fp, "o", ms=5.5, color=ARANCIO, mec="white", mew=0.8, zorder=3,
          label=f"core-fitted (registered), envelope {p50['soglie']['P95']:.2f} Å")
-axB.plot(x, fs, "o", ms=4.8, color="white", mec=ARANCIO, mew=1.3, zorder=4,
+axB.plot(x + DX_B, fs, "o", ms=4.8, color="white", mec=ARANCIO, mew=1.3, zorder=4,
          label=f"self-fitted (post hoc), envelope {q50['soglie']['P95']:.2f} Å")
 axB.set_xlim(0.4, len(reps) + 0.6); axB.set_ylim(-0.02, 1.03)
 axB.set_xticks(x, [r[3:] for r in reps]); axB.set_ylabel("fraction of frames inside the bound envelope")
