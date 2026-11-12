@@ -11,6 +11,7 @@ documento.
    proteina)      fotogramma)│    repliche)           14_scopo3_rmsf.py ─► 15_figure.py
                              ├─► 16_verifica_immagini.py (gmx mindist -pi su alcuni fotogrammi)
                              └─► 17_cerniera.py (diagnostica descrittiva Fv-core, solo complesso)
+12, 13, 14, 17 (json finali) ─► 18_figura_articolo.py (figure per l'articolo, solo disegno)
 ```
 
 | Script | Cosa fa | Uscita |
@@ -24,7 +25,9 @@ documento.
 | `14_scopo3_rmsf.py` | Scopo 3: RMSF dei Cα e medie di segmento 87-101 e 138-147; Welch + Holm solo nell'analisi finale. | `scopo3_rmsf.txt`, `.json`, `scopo3_rmsf_per_residuo.csv` |
 | `15_figure.py` | Figure descrittive (serve matplotlib). | `fig_*.png` |
 | `16_verifica_immagini.py` | Controllo del revisore: su 8 fotogrammi per replica `gmx trjconv -pbc cluster` (Protein_Other) dalla traiettoria di produzione, poi `gmx mindist -pi`, contro la distanza di 10 ricalcolata senza tetto; tolleranza 0.005 Å. Serve GROMACS. | `verifica_immagini.txt`, `.json` |
-| `17_cerniera.py` | Diagnostica descrittiva, NON criterio (6 nov 2026, dopo l'intermedia a 250 ns; nota nel registro del doc): solo complesso, ogni 1 ns, RMSD del backbone dell'epitopo dopo fit sul core (= cache, controllo), sull'Fv e sull'epitopo stesso; Cα 90-93 dopo fit sul core e sull'Fv; rotazione e spostamento dell'Fv rispetto al core; scostamento per residuo dei Cα dell'epitopo. Nel libero il fit sull'epitopo non si calcola prima dei dati finali (revisore, 6 nov). | `diagnostica_cerniera.txt`, `.json`, `fig_diagnostica_cerniera.png` |
+| `17_cerniera.py` | Diagnostica descrittiva, NON criterio (6 nov 2026, dopo l'intermedia a 250 ns; nota nel registro del doc): solo complesso, ogni 1 ns, RMSD del backbone dell'epitopo dopo fit sul core (= cache, controllo), sull'Fv e sull'epitopo stesso; Cα 90-93 dopo fit sul core e sull'Fv; rotazione e spostamento dell'Fv rispetto al core; scostamento per residuo dei Cα dell'epitopo. Nel libero il fit sull'epitopo non si calcola prima dei dati finali (revisore, 6 nov). Dall'11 nov 2026 scrive lo stato (INTERMEDIA o FINALE) dalle lunghezze delle repliche del complesso, non più un'etichetta fissa. | `diagnostica_cerniera.txt`, `.json`, `fig_diagnostica_cerniera.png` |
+| `18_figura_articolo.py` | Figure per l'articolo, in inglese, SOLO DISEGNO (condizioni del revisore, 11 nov 2026): non ricalcola e non riaggrega niente; ogni numero disegnato è una foglia dei json finali di 12, 13, 14 e 17, le cui sha256 stanno nel txt. Si ferma se uno scopo non è FINALE, se manca la secondaria del libero o se un esito dei contatti cambia fra scarto 50 e 100 ns. | `fig_articolo_md.png/.pdf` (principale), `_S1` (scopo 2 nel tempo, blocchi di 50 ns), `_S2` (rotazione dell'Fv), `fig_articolo_md.txt` |
+| `rilancia_finale.sh`, `SHA256SUMS` | Analisi finale con una sola versione: controlla le sha256 degli script contro `SHA256SUMS` (si ferma se una è diversa), mette da parte `analisi/risultati` e rilancia 10-18 nell'ordine. `SHA256SUMS` va rigenerato a ogni modifica degli script (`sha256sum 0*.py 0*.sh 1*.py comune_fab.py > SHA256SUMS`). | – |
 | `comune_fab.py` | Definizioni dal documento (residui, soglie, scarti), lettura del gro, PBC, fit, provenienza. | – |
 
 ## Comandi (sulla workstation, dalla cartella `complesso_fab`)
@@ -39,6 +42,14 @@ python3 analisi/14_scopo3_rmsf.py
 python3 analisi/15_figure.py
 python3 analisi/16_verifica_immagini.py
 python3 analisi/17_cerniera.py
+python3 analisi/18_figura_articolo.py      # solo con i dati finali
+```
+
+Per l'analisi finale, dopo aver copiato in `analisi/` tutti i file di questa cartella, basta un comando, che
+controlla le versioni e rilancia 10-18:
+
+```
+bash analisi/rilancia_finale.sh
 ```
 
 - Pacchetti: Python 3 con numpy, scipy (≥ 1.7), MDAnalysis (≥ 2.0); matplotlib solo per le figure.

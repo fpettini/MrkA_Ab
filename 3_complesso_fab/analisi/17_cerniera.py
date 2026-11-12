@@ -93,6 +93,8 @@ Y0 = C.riassembla(u0.atoms.positions.copy()[None].astype(float), u0.trajectory.t
 s4 = {k: float(v[0]) for k, v in misure(Y0).items()}
 
 serie = C.leggi_cache(arg.cache)
+T3, T2, lung = C.durate(serie)
+stato = C.stato_analisi(lung, T3, T2)["scopo1"]            # solo complesso: FINALE con le 5 repliche del disegno a 500 ns
 ris, ingressi, max_diff = {}, [], 0.0
 for (s, r), d in sorted(serie.items(), key=lambda x: (x[0][0], int(x[0][1][3:]))):
     if s != S:
@@ -135,7 +137,7 @@ P = C.prov(__file__, ingressi + [gro, arg.pdb], {"cache": arg.cache, "trj": arg.
 L = C.testo_prov(P)
 L += ["# DIAGNOSTICA DESCRITTIVA, non e' un criterio del doc: non decide validita' ne' esiti. Solo complesso (nel libero",
       "# l'RMSD dell'epitopo a fit proprio non si calcola prima dei dati finali, condizione del revisore del 6 nov 2026).",
-      *C.avviso_intermedia("INTERMEDIA"), "",
+      f"# Stato: {stato} (per lunghezze delle repliche del complesso).", *C.avviso_intermedia(stato), "",
       f"Un fotogramma ogni {arg.passo} della serie; epi|core coincide con rmsd_epi della cache (scarto massimo {max_diff:.1e} A).",
       "epi = backbone dei residui " + ", ".join(map(str, C.EPITOPO)) + "; tip = Ca " + "-".join(map(str, (PUNTA[0], PUNTA[-1])))
       + f"; Fv = {len(fv)} Ca (ricostruiti esclusi); core = 43 Ca. RMSD e traslazione in A, rotazione in gradi.", "",
@@ -156,7 +158,7 @@ for r, v in ris.items():
     for lab, key in (("primo", "per_residuo_primo_ns"), (f"{int(arg.scarto)}-fine", "per_residuo_finestra")):
         L.append(f"{S + ' ' + r + ' ' + lab:22s}" + "".join(f"{v[key][str(k)]:8.1f}" for k in C.EPITOPO))
 open(os.path.join(arg.out, "diagnostica_cerniera.txt"), "w").write("\n".join(L) + "\n")
-json.dump({"provenienza": P, "equil_s4": s4, "repliche": ris, "diff_cache_max_A": max_diff},
+json.dump({"provenienza": P, "stato": stato, "equil_s4": s4, "repliche": ris, "diff_cache_max_A": max_diff},
           open(os.path.join(arg.out, "diagnostica_cerniera.json"), "w"), indent=1)
 print("\n".join(L))
 
@@ -183,6 +185,6 @@ for j, (r, v) in enumerate(ris.items()):
 ax[0, 0].set_ylabel("rotazione dell'Fv rispetto\nal core MrkA (gradi)"); ax[1, 0].set_ylabel("RMSD backbone epitopo (A)")
 h, l = ax[1, 0].get_legend_handles_labels(); fig.legend(h, l, frameon=False, loc="lower center", ncol=3)
 fig.suptitle(f"Diagnostica descrittiva, non criterio (un fotogramma ogni {arg.passo}; grigio = scarto {int(arg.scarto)} ns) - "
-             "ANALISI INTERMEDIA", x=0.01, ha="left", fontsize=9)
+             + ("DATI FINALI" if stato == "FINALE" else "ANALISI INTERMEDIA"), x=0.01, ha="left", fontsize=9)
 fig.tight_layout(rect=(0, 0.06, 1, 1)); fig.savefig(os.path.join(arg.out, "fig_diagnostica_cerniera.png"), dpi=150)
 print("figura: fig_diagnostica_cerniera.png")
